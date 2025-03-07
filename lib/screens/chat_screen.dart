@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/message.dart';
+import '../models/chat_history.dart';
 import '../utils/ai_service.dart';
 import '../widgets/chat_message.dart';
 import '../widgets/suggestion_button.dart';
 import '../widgets/typing_indicator.dart';
 import '../widgets/chat_input_field.dart';
+import '../widgets/chat_sidebar.dart';
 import '../screens/settings_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -21,81 +23,107 @@ class _ChatScreenState extends State<ChatScreen> {
   final AiService _aiService = AiService();
   bool _isTyping = false;
   bool _showAllSuggestions = false;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
     super.initState();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.grey.shade200,
-        elevation: 0,
-        title: const Text(
-          'BubbleChatAI',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-          ),
-        ),
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.black),
-          onPressed: () {},
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.black),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SettingsScreen(aiService: _aiService),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              children: [
-                if (_messages.isEmpty) ...[
-                  const SizedBox(height: 40),
-                  const Center(
-                    child: Text(
-                      'Tôi có thể giúp gì cho bạn?',
-                      style: TextStyle(
-                        fontSize: 24.0,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  const SizedBox(height: 60),
-                  _buildSuggestionButtons(),
-                ],
-                ..._messages.map((message) => ChatMessageWidget(message: message)),
-                if (_isTyping) const TypingIndicator(),
-              ],
-            ),
-          ),
-          ChatInputField(
-            controller: _textController,
-            onSubmitted: _handleSubmitted,
-          ),
-        ],
-      ),
+  void _handleSubmitted(String text) {
+    if (text.trim().isEmpty) return;
+    
+    _textController.clear();
+    setState(() {
+      _messages.add(Message(text: text, isUser: true));
+      _isTyping = true;
+      _showAllSuggestions = false;
+    });
+    
+    _scrollToBottom();
+    
+    // Tạo tin nhắn trống cho AI
+    final aiMessage = Message(text: "", isUser: false);
+    setState(() {
+      _messages.add(aiMessage);
+    });
+    
+    // Sử dụng stream để cập nhật tin nhắn theo thời gian thực
+    _aiService.generateResponseStream(text).listen(
+      (fullResponse) {
+        if (mounted) {
+          setState(() {
+            // Tìm vị trí tin nhắn AI trong danh sách
+            final index = _messages.indexWhere((msg) => 
+              msg == aiMessage || 
+              (!msg.isUser && _messages.indexOf(msg) == _messages.length - 1)
+            );
+            
+            if (index != -1) {
+              // Tạo tin nhắn mới với nội dung cập nhật
+              _messages[index] = Message(text: fullResponse, isUser: false);
+            }
+          });
+          
+          // Đảm bảo cuộn xuống sau mỗi cập nhật
+          _scrollToBottom();
+        }
+      },
+      onDone: () {
+        if (mounted) {
+          setState(() {
+            _isTyping = false;
+          });
+        }
+      },
+      onError: (error) {
+        if (mounted) {
+          setState(() {
+            _isTyping = false;
+            // Tìm vị trí tin nhắn AI
+            final index = _messages.indexWhere((msg) => 
+              msg == aiMessage || 
+              (!msg.isUser && _messages.indexOf(msg) == _messages.length - 1)
+            );
+            
+            if (index != -1) {
+              _messages[index] = Message(text: "Đã xảy ra lỗi: $error", isUser: false);
+            }
+          });
+        }
+      },
     );
+  }
+
+  void _startNewChat() {
+    setState(() {
+      _messages.clear();
+      _showAllSuggestions = false;
+    });
+    _aiService.startNewChat();
+  }
+
+  Future<void> _loadChatHistory(ChatHistory chatHistory) async {
+    await _aiService.loadChatHistory(chatHistory);
+    
+    setState(() {
+      _messages.clear();
+      _messages.addAll(chatHistory.messages);
+      _showAllSuggestions = false;
+    });
+    
+    _scrollToBottom();
+  }
+
+  void _handleSuggestionTap(String suggestion) {
+    _textController.text = suggestion;
+    _handleSubmitted(suggestion);
+  }
+
+  void _toggleShowAllSuggestions() {
+    setState(() {
+      _showAllSuggestions = !_showAllSuggestions;
+    });
   }
 
   Widget _buildSuggestionButtons() {
@@ -186,123 +214,8 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: MediaQuery.of(context).size.width * 0.85,
-            child: SuggestionButton(
-              text: 'Phân tích dữ liệu',
-              icon: Icons.bar_chart,
-              iconColor: Colors.cyan,
-              onTap: () => _handleSuggestionTap('Phân tích dữ liệu'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: MediaQuery.of(context).size.width * 0.85,
-            child: SuggestionButton(
-              text: 'Giúp tôi viết',
-              icon: Icons.edit,
-              iconColor: Colors.purple,
-              onTap: () => _handleSuggestionTap('Giúp tôi viết'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: MediaQuery.of(context).size.width * 0.85,
-            child: SuggestionButton(
-              text: 'Làm tôi ngạc nhiên',
-              icon: Icons.celebration,
-              iconColor: Colors.cyan,
-              onTap: () => _handleSuggestionTap('Làm tôi ngạc nhiên'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: MediaQuery.of(context).size.width * 0.85,
-            child: SuggestionButton(
-              text: 'Nhận lời khuyên',
-              icon: Icons.school,
-              iconColor: Colors.cyan,
-              onTap: () => _handleSuggestionTap('Nhận lời khuyên'),
-            ),
-          ),
         ],
       ],
-    );
-  }
-
-  void _toggleShowAllSuggestions() {
-    setState(() {
-      _showAllSuggestions = !_showAllSuggestions;
-    });
-  }
-
-  void _handleSuggestionTap(String suggestion) {
-    _handleSubmitted(suggestion);
-  }
-
-  void _handleSubmitted(String text) {
-    if (text.trim().isEmpty) return;
-    
-    _textController.clear();
-    setState(() {
-      _messages.add(Message(text: text, isUser: true));
-      _isTyping = true;
-      _showAllSuggestions = false;
-    });
-    
-    _scrollToBottom();
-    
-    // Tạo tin nhắn trống cho AI
-    final aiMessage = Message(text: "", isUser: false);
-    setState(() {
-      _messages.add(aiMessage);
-    });
-    
-    // Sử dụng stream để cập nhật tin nhắn theo thời gian thực
-    _aiService.generateResponseStream(text).listen(
-      (fullResponse) {
-        if (mounted) {
-          setState(() {
-            // Tìm vị trí tin nhắn AI trong danh sách
-            final index = _messages.indexWhere((msg) => 
-              msg == aiMessage || 
-              (!msg.isUser && _messages.indexOf(msg) == _messages.length - 1)
-            );
-            
-            if (index != -1) {
-              // Tạo tin nhắn mới với nội dung cập nhật
-              _messages[index] = Message(text: fullResponse, isUser: false);
-            }
-          });
-          
-          // Đảm bảo cuộn xuống sau mỗi cập nhật
-          _scrollToBottom();
-        }
-      },
-      onDone: () {
-        if (mounted) {
-          setState(() {
-            _isTyping = false;
-          });
-        }
-      },
-      onError: (error) {
-        if (mounted) {
-          setState(() {
-            _isTyping = false;
-            // Tìm vị trí tin nhắn AI
-            final index = _messages.indexWhere((msg) => 
-              msg == aiMessage || 
-              (!msg.isUser && _messages.indexOf(msg) == _messages.length - 1)
-            );
-            
-            if (index != -1) {
-              _messages[index] = Message(text: "Đã xảy ra lỗi: $error", isUser: false);
-            }
-          });
-        }
-      },
     );
   }
 
@@ -316,5 +229,89 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.grey.shade200,
+          elevation: 0,
+          title: const Text(
+            'BubbleChatAI',
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.bold,
+              fontSize: 24,
+            ),
+          ),
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.menu, color: Colors.black),
+            onPressed: () {
+              _scaffoldKey.currentState?.openDrawer();
+            },
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.settings, color: Colors.black),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SettingsScreen(aiService: _aiService),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        drawer: ChatSidebar(
+          aiService: _aiService,
+          onChatSelected: _loadChatHistory,
+          onNewChatPressed: _startNewChat,
+          onClose: () {
+            Navigator.pop(context);
+          },
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                controller: _scrollController,
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                children: [
+                  if (_messages.isEmpty) ...[
+                    const SizedBox(height: 40),
+                    const Center(
+                      child: Text(
+                        'Tôi có thể giúp gì cho bạn?',
+                        style: TextStyle(
+                          fontSize: 24.0,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 60),
+                    _buildSuggestionButtons(),
+                  ],
+                  ..._messages.map((message) => ChatMessageWidget(message: message)),
+                  if (_isTyping) const TypingIndicator(),
+                ],
+              ),
+            ),
+            ChatInputField(
+              controller: _textController,
+              onSubmitted: _handleSubmitted,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 } 
