@@ -13,6 +13,7 @@ class AiService {
   bool _isInitialized = false;
   ChatHistory? _currentChatHistory;
   String? _systemInstructionText;
+  Map<String, String> _safetySettings = {};
   
   // Thêm cache cho ảnh
   final Map<String, String> _imageCache = {};
@@ -20,6 +21,52 @@ class AiService {
   AiService() {
     _initializeModel();
     _prepareImageDirectory();
+  }
+  
+  SafetySetting _convertSafetySetting(String category, String level) {
+    HarmCategory harmCategory;
+    HarmBlockThreshold blockThreshold;
+
+    // Chuyển đổi category string thành HarmCategory
+    switch (category) {
+      case 'HARASSMENT':
+        harmCategory = HarmCategory.harassment;
+        break;
+      case 'HATE_SPEECH':
+        harmCategory = HarmCategory.hateSpeech;
+        break;
+      case 'SEXUALLY_EXPLICIT':
+        harmCategory = HarmCategory.sexuallyExplicit;
+        break;
+      case 'DANGEROUS_CONTENT':
+        harmCategory = HarmCategory.dangerousContent;
+        break;
+      case 'CIVIC_INTEGRITY':
+        harmCategory = HarmCategory.harassment; // Sử dụng harassment thay thế vì không có civicIntegrity
+        break;
+      default:
+        harmCategory = HarmCategory.harassment;
+    }
+
+    // Chuyển đổi level string thành HarmBlockThreshold
+    switch (level) {
+      case 'BLOCK_NONE':
+        blockThreshold = HarmBlockThreshold.none;
+        break;
+      case 'BLOCK_LOW':
+        blockThreshold = HarmBlockThreshold.low;
+        break;
+      case 'BLOCK_MEDIUM':
+        blockThreshold = HarmBlockThreshold.medium;
+        break;
+      case 'BLOCK_HIGH':
+        blockThreshold = HarmBlockThreshold.high;
+        break;
+      default:
+        blockThreshold = HarmBlockThreshold.none;
+    }
+
+    return SafetySetting(harmCategory, blockThreshold);
   }
   
   Future<void> _initializeModel() async {
@@ -33,6 +80,14 @@ class AiService {
       // Lấy ghi chú hệ thống từ Preferences
       _systemInstructionText = await Preferences.getSystemInstruction();
       
+      // Lấy cài đặt an toàn từ Preferences
+      _safetySettings = await Preferences.getSafetySettings();
+      
+      // Chuyển đổi cài đặt an toàn thành danh sách SafetySetting
+      final safetySettingsList = _safetySettings.entries.map((entry) => 
+        _convertSafetySetting(entry.key, entry.value)
+      ).toList();
+      
       // Tạo GenerativeModel với hoặc không có systemInstruction tùy theo giá trị
       if (_systemInstructionText != null && _systemInstructionText!.isNotEmpty) {
         // Chuyển đổi text thành Content object
@@ -42,6 +97,7 @@ class AiService {
           model: 'gemini-2.0-flash',
           apiKey: apiKey,
           systemInstruction: systemInstruction,
+          safetySettings: safetySettingsList,
           generationConfig: GenerationConfig(
             temperature: 1,
             topK: 40,
@@ -54,6 +110,7 @@ class AiService {
         _model = GenerativeModel(
           model: 'gemini-2.0-flash',
           apiKey: apiKey,
+          safetySettings: safetySettingsList,
           generationConfig: GenerationConfig(
             temperature: 1,
             topK: 40,
@@ -84,6 +141,19 @@ class AiService {
     await _initializeModel();
   }
   
+  // Thêm phương thức cập nhật cài đặt an toàn
+  Future<void> updateSafetySettings(Map<String, String> settings) async {
+    await Preferences.saveSafetySettings(settings);
+    _safetySettings = settings;
+    _isInitialized = false;
+    await _initializeModel();
+  }
+  
+  // Thêm phương thức lấy cài đặt an toàn hiện tại
+  Map<String, String> getSafetySettings() {
+    return Map<String, String>.from(_safetySettings);
+  }
+  
   // Lấy ra ghi chú hệ thống hiện tại
   String? getSystemInstruction() {
     return _systemInstructionText;
@@ -112,6 +182,9 @@ class AiService {
           model: 'gemini-2.0-flash',
           apiKey: apiKey,
           systemInstruction: systemInstruction,
+          safetySettings: _safetySettings.entries.map((entry) => 
+            _convertSafetySetting(entry.key, entry.value)
+          ).toList(),
           generationConfig: GenerationConfig(
             temperature: 1,
             topK: 40,

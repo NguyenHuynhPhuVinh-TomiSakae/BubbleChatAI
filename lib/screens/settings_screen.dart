@@ -17,6 +17,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _apiKeyController = TextEditingController();
   final TextEditingController _systemInstructionController = TextEditingController();
   bool _isLoading = true;
+  Map<String, String> _safetySettings = {};
   
   @override
   void initState() {
@@ -27,10 +28,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     final apiKey = await Preferences.getApiKey();
     final systemInstruction = await Preferences.getSystemInstruction();
+    final safetySettings = await Preferences.getSafetySettings();
     
     setState(() {
       _apiKeyController.text = apiKey ?? '';
       _systemInstructionController.text = systemInstruction ?? '';
+      _safetySettings = safetySettings;
       _isLoading = false;
     });
   }
@@ -71,6 +74,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _saveSafetySettings() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    await widget.aiService.updateSafetySettings(_safetySettings);
+    
+    setState(() {
+      _isLoading = false;
+    });
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cài đặt an toàn đã được lưu')),
+      );
+    }
+  }
+
   String _getThemeModeText(ThemeMode mode) {
     switch (mode) {
       case ThemeMode.light:
@@ -79,6 +100,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return 'Tối';
       case ThemeMode.system:
         return 'Hệ thống';
+    }
+  }
+
+  String _getSafetyCategoryText(String category) {
+    switch (category) {
+      case 'HARASSMENT':
+        return 'Quấy rối';
+      case 'HATE_SPEECH':
+        return 'Phát ngôn thù địch';
+      case 'SEXUALLY_EXPLICIT':
+        return 'Nội dung nhạy cảm';
+      case 'DANGEROUS_CONTENT':
+        return 'Nội dung nguy hiểm';
+      case 'CIVIC_INTEGRITY':
+        return 'Chính trị & Xã hội';
+      default:
+        return category;
     }
   }
 
@@ -189,6 +227,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   padding: const EdgeInsets.symmetric(vertical: 12),
                                 ),
                                 child: const Text('Lưu ghi chú hệ thống'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Phần Safety Settings (Cài đặt an toàn)
+                    Card(
+                      elevation: 2,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Cài đặt an toàn',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Điều chỉnh mức độ lọc nội dung không phù hợp',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            const SizedBox(height: 16),
+                            ..._safetySettings.entries.map((entry) => Column(
+                              children: [
+                                ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(_getSafetyCategoryText(entry.key)),
+                                  trailing: DropdownButton<String>(
+                                    value: entry.value,
+                                    onChanged: (String? newValue) {
+                                      if (newValue != null) {
+                                        setState(() {
+                                          _safetySettings[entry.key] = newValue;
+                                        });
+                                      }
+                                    },
+                                    items: const [
+                                      DropdownMenuItem(
+                                        value: 'BLOCK_NONE',
+                                        child: Text('Tắt'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'BLOCK_LOW',
+                                        child: Text('Thấp'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'BLOCK_MEDIUM',
+                                        child: Text('Trung bình'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'BLOCK_HIGH',
+                                        child: Text('Cao'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Divider(),
+                              ],
+                            )).toList(),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _saveSafetySettings,
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                child: const Text('Lưu cài đặt an toàn'),
                               ),
                             ),
                           ],

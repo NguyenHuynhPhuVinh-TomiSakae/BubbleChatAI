@@ -6,6 +6,7 @@ class Preferences {
   static const String apiKeyKey = 'gemini_api_key';
   static const String chatHistoryKey = 'chat_history';
   static const String systemInstructionKey = 'system_instruction';
+  static const String safetySettingsKey = 'safety_settings';
   
   static Future<void> saveApiKey(String apiKey) async {
     final prefs = await SharedPreferences.getInstance();
@@ -25,6 +26,26 @@ class Preferences {
   static Future<String?> getSystemInstruction() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(systemInstructionKey);
+  }
+  
+  static Future<void> saveSafetySettings(Map<String, String> settings) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(safetySettingsKey, jsonEncode(settings));
+  }
+  
+  static Future<Map<String, String>> getSafetySettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final settingsJson = prefs.getString(safetySettingsKey);
+    if (settingsJson != null) {
+      return Map<String, String>.from(jsonDecode(settingsJson));
+    }
+    return {
+      'HARASSMENT': 'BLOCK_NONE',
+      'HATE_SPEECH': 'BLOCK_NONE',
+      'SEXUALLY_EXPLICIT': 'BLOCK_NONE',
+      'DANGEROUS_CONTENT': 'BLOCK_NONE',
+      'CIVIC_INTEGRITY': 'BLOCK_NONE',
+    };
   }
   
   static Future<void> saveChatHistory(List<ChatHistory> chatHistories) async {
