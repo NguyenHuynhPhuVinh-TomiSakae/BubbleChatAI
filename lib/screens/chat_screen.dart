@@ -5,6 +5,7 @@ import '../widgets/chat_message.dart';
 import '../widgets/suggestion_button.dart';
 import '../widgets/typing_indicator.dart';
 import '../widgets/chat_input_field.dart';
+import '../screens/settings_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -48,12 +49,15 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.black),
-            onPressed: () {},
+            icon: const Icon(Icons.settings, color: Colors.black),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SettingsScreen(aiService: _aiService),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -70,7 +74,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Text(
                       'Tôi có thể giúp gì cho bạn?',
                       style: TextStyle(
-                        fontSize: 28.0,
+                        fontSize: 24.0,
                         fontWeight: FontWeight.bold,
                         color: Colors.black,
                       ),
@@ -249,14 +253,57 @@ class _ChatScreenState extends State<ChatScreen> {
     
     _scrollToBottom();
     
-    // Gọi AI service để lấy phản hồi
-    _aiService.generateResponse(text).then((response) {
-      setState(() {
-        _isTyping = false;
-        _messages.add(Message(text: response, isUser: false));
-      });
-      _scrollToBottom();
+    // Tạo tin nhắn trống cho AI
+    final aiMessage = Message(text: "", isUser: false);
+    setState(() {
+      _messages.add(aiMessage);
     });
+    
+    // Sử dụng stream để cập nhật tin nhắn theo thời gian thực
+    _aiService.generateResponseStream(text).listen(
+      (fullResponse) {
+        if (mounted) {
+          setState(() {
+            // Tìm vị trí tin nhắn AI trong danh sách
+            final index = _messages.indexWhere((msg) => 
+              msg == aiMessage || 
+              (!msg.isUser && _messages.indexOf(msg) == _messages.length - 1)
+            );
+            
+            if (index != -1) {
+              // Tạo tin nhắn mới với nội dung cập nhật
+              _messages[index] = Message(text: fullResponse, isUser: false);
+            }
+          });
+          
+          // Đảm bảo cuộn xuống sau mỗi cập nhật
+          _scrollToBottom();
+        }
+      },
+      onDone: () {
+        if (mounted) {
+          setState(() {
+            _isTyping = false;
+          });
+        }
+      },
+      onError: (error) {
+        if (mounted) {
+          setState(() {
+            _isTyping = false;
+            // Tìm vị trí tin nhắn AI
+            final index = _messages.indexWhere((msg) => 
+              msg == aiMessage || 
+              (!msg.isUser && _messages.indexOf(msg) == _messages.length - 1)
+            );
+            
+            if (index != -1) {
+              _messages[index] = Message(text: "Đã xảy ra lỗi: $error", isUser: false);
+            }
+          });
+        }
+      },
+    );
   }
 
   void _scrollToBottom() {
