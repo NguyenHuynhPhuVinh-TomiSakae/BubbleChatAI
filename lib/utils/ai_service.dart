@@ -290,7 +290,12 @@ class AiService {
       
       return response.text ?? 'Không nhận được phản hồi';
     } catch (e) {
-      return 'Đã xảy ra lỗi: $e';
+      if (e.toString().contains('Failed host lookup') || 
+          e.toString().contains('SocketException')) {
+        return "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại.";
+      } else {
+        return "Đã xảy ra lỗi: $e";
+      }
     }
   }
   
