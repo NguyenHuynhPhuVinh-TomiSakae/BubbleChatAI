@@ -51,24 +51,29 @@ class _ChatSidebarState extends State<ChatSidebar> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     return Drawer(
+      backgroundColor: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            color: Colors.grey.shade200,
+            color: isDarkMode ? theme.colorScheme.surface : Colors.grey.shade200,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Lịch sử trò chuyện',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close, color: theme.colorScheme.onSurface),
                   onPressed: widget.onClose,
                 ),
               ],
@@ -86,18 +91,23 @@ class _ChatSidebarState extends State<ChatSidebar> {
                   widget.onClose();
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
+                  backgroundColor: theme.colorScheme.primary,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
             ),
           ),
-          const Divider(),
+          Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? Center(child: CircularProgressIndicator(color: theme.colorScheme.primary))
                 : _chatHistories.isEmpty
-                    ? const Center(child: Text('Chưa có lịch sử trò chuyện'))
+                    ? Center(
+                        child: Text(
+                          'Chưa có lịch sử trò chuyện',
+                          style: TextStyle(color: theme.colorScheme.onSurface),
+                        ),
+                      )
                     : ListView.builder(
                         itemCount: _chatHistories.length,
                         itemBuilder: (context, index) {
@@ -109,17 +119,25 @@ class _ChatSidebarState extends State<ChatSidebar> {
                               chat.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface,
+                              ),
                             ),
                             subtitle: Text(
                               _formatDate(chat.lastUpdatedAt),
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey.shade600,
+                                color: isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600,
                               ),
                             ),
                             selected: isSelected,
-                            selectedTileColor: Colors.grey.shade200,
-                            leading: const Icon(Icons.chat_bubble_outline),
+                            selectedTileColor: isDarkMode 
+                                ? theme.colorScheme.primary.withOpacity(0.1)
+                                : Colors.grey.shade200,
+                            leading: Icon(
+                              Icons.chat_bubble_outline,
+                              color: theme.colorScheme.onSurface.withOpacity(0.7),
+                            ),
                             trailing: IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.red),
                               onPressed: () => _deleteChat(chat.id),
