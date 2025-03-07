@@ -1,0 +1,273 @@
+import 'package:flutter/material.dart';
+import '../models/message.dart';
+import '../utils/ai_service.dart';
+import '../widgets/chat_message.dart';
+import '../widgets/suggestion_button.dart';
+import '../widgets/typing_indicator.dart';
+import '../widgets/chat_input_field.dart';
+
+class ChatScreen extends StatefulWidget {
+  const ChatScreen({super.key});
+
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final List<Message> _messages = [];
+  final TextEditingController _textController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final AiService _aiService = AiService();
+  bool _isTyping = false;
+  bool _showAllSuggestions = false;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.grey.shade200,
+        elevation: 0,
+        title: const Text(
+          'BubbleChatAI',
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
+        ),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.menu, color: Colors.black),
+          onPressed: () {},
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.black),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.more_vert, color: Colors.black),
+            onPressed: () {},
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              children: [
+                if (_messages.isEmpty) ...[
+                  const SizedBox(height: 40),
+                  const Center(
+                    child: Text(
+                      'Tôi có thể giúp gì cho bạn?',
+                      style: TextStyle(
+                        fontSize: 28.0,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 60),
+                  _buildSuggestionButtons(),
+                ],
+                ..._messages.map((message) => ChatMessageWidget(message: message)),
+                if (_isTyping) const TypingIndicator(),
+              ],
+            ),
+          ),
+          ChatInputField(
+            controller: _textController,
+            onSubmitted: _handleSubmitted,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestionButtons() {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Center(
+            child: SizedBox(
+              width: MediaQuery.of(context).size.width * 0.85,
+              child: SuggestionButton(
+                text: 'Tạo hình ảnh',
+                icon: Icons.image,
+                iconColor: Colors.green,
+                onTap: () => _handleSuggestionTap('Tạo hình ảnh'),
+              ),
+            ),
+          ),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: MediaQuery.of(context).size.width * 0.65,
+              child: SuggestionButton(
+                text: 'Tóm tắt văn bản',
+                icon: Icons.description,
+                iconColor: Colors.orange,
+                onTap: () => _handleSuggestionTap('Tóm tắt văn bản'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: MediaQuery.of(context).size.width * 0.2,
+              child: SuggestionButton(
+                text: 'Thêm',
+                icon: null,
+                iconColor: Colors.transparent,
+                onTap: _toggleShowAllSuggestions,
+              ),
+            ),
+          ],
+        ),
+        if (_showAllSuggestions) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: MediaQuery.of(context).size.width * 0.85,
+            child: SuggestionButton(
+              text: 'Phân tích hình ảnh',
+              icon: Icons.remove_red_eye,
+              iconColor: Colors.blue,
+              onTap: () => _handleSuggestionTap('Phân tích hình ảnh'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: MediaQuery.of(context).size.width * 0.85,
+            child: SuggestionButton(
+              text: 'Mã',
+              icon: Icons.code,
+              iconColor: Colors.purple,
+              onTap: () => _handleSuggestionTap('Viết mã'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: MediaQuery.of(context).size.width * 0.42,
+                child: SuggestionButton(
+                  text: 'Lên kế hoạch',
+                  icon: Icons.lightbulb_outline,
+                  iconColor: Colors.amber,
+                  onTap: () => _handleSuggestionTap('Lên kế hoạch'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: MediaQuery.of(context).size.width * 0.42,
+                child: SuggestionButton(
+                  text: 'Lên ý tưởng',
+                  icon: Icons.lightbulb_outline,
+                  iconColor: Colors.amber,
+                  onTap: () => _handleSuggestionTap('Lên ý tưởng'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: MediaQuery.of(context).size.width * 0.85,
+            child: SuggestionButton(
+              text: 'Phân tích dữ liệu',
+              icon: Icons.bar_chart,
+              iconColor: Colors.cyan,
+              onTap: () => _handleSuggestionTap('Phân tích dữ liệu'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: MediaQuery.of(context).size.width * 0.85,
+            child: SuggestionButton(
+              text: 'Giúp tôi viết',
+              icon: Icons.edit,
+              iconColor: Colors.purple,
+              onTap: () => _handleSuggestionTap('Giúp tôi viết'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: MediaQuery.of(context).size.width * 0.85,
+            child: SuggestionButton(
+              text: 'Làm tôi ngạc nhiên',
+              icon: Icons.celebration,
+              iconColor: Colors.cyan,
+              onTap: () => _handleSuggestionTap('Làm tôi ngạc nhiên'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: MediaQuery.of(context).size.width * 0.85,
+            child: SuggestionButton(
+              text: 'Nhận lời khuyên',
+              icon: Icons.school,
+              iconColor: Colors.cyan,
+              onTap: () => _handleSuggestionTap('Nhận lời khuyên'),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _toggleShowAllSuggestions() {
+    setState(() {
+      _showAllSuggestions = !_showAllSuggestions;
+    });
+  }
+
+  void _handleSuggestionTap(String suggestion) {
+    _handleSubmitted(suggestion);
+  }
+
+  void _handleSubmitted(String text) {
+    if (text.trim().isEmpty) return;
+    
+    _textController.clear();
+    setState(() {
+      _messages.add(Message(text: text, isUser: true));
+      _isTyping = true;
+      _showAllSuggestions = false;
+    });
+    
+    _scrollToBottom();
+    
+    // Gọi AI service để lấy phản hồi
+    _aiService.generateResponse(text).then((response) {
+      setState(() {
+        _isTyping = false;
+        _messages.add(Message(text: response, isUser: false));
+      });
+      _scrollToBottom();
+    });
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+} 
