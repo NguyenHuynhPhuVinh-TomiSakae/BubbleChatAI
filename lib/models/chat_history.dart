@@ -59,6 +59,7 @@ class ChatHistory {
       'messages': messages.map((m) => {
         'text': m.text,
         'isUser': m.isUser,
+        'images': m.images,
         'timestamp': m.timestamp.toIso8601String(),
       }).toList(),
     };
@@ -73,6 +74,7 @@ class ChatHistory {
       messages: (json['messages'] as List).map((m) => Message(
         text: m['text'],
         isUser: m['isUser'],
+        images: m['images'] != null ? List<String>.from(m['images']) : [],
         timestamp: DateTime.parse(m['timestamp']),
       )).toList(),
     );

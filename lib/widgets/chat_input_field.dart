@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 class ChatInputField extends StatefulWidget {
   final TextEditingController controller;
-  final Function(String) onSubmitted;
+  final Function(String text, List<File> images)? onSubmitted;
 
   const ChatInputField({
     super.key,
     required this.controller,
-    required this.onSubmitted,
+    this.onSubmitted,
   });
 
   @override
@@ -20,6 +22,10 @@ class _ChatInputFieldState extends State<ChatInputField> with SingleTickerProvid
   late AnimationController _sendButtonController;
   late Animation<double> _sendButtonAnimation;
   VoidCallback? onAttachmentPressed;
+  List<File> _selectedImages = [];
+  final double _minHeight = 48.0;
+  final double _maxHeight = 120.0;
+  final double _imagePreviewSize = 80.0;
 
   @override
   void initState() {
@@ -61,9 +67,69 @@ class _ChatInputFieldState extends State<ChatInputField> with SingleTickerProvid
   }
 
   void _handleSubmitted(String text) {
-    if (text.trim().isEmpty) return;
-    widget.onSubmitted(text);
-    _focusNode.requestFocus();
+    if ((text.trim().isEmpty && _selectedImages.isEmpty) || widget.onSubmitted == null) {
+      return;
+    }
+    widget.controller.clear();
+    widget.onSubmitted!(text, _selectedImages);
+    setState(() {
+      _selectedImages = [];
+    });
+  }
+
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Chọn ảnh từ thư viện'),
+                onTap: () {
+                  _getImage(ImageSource.gallery);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Chụp ảnh'),
+                onTap: () {
+                  _getImage(ImageSource.camera);
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _getImage(ImageSource source) async {
+    final ImagePicker picker = ImagePicker();
+    if (source == ImageSource.gallery) {
+      final List<XFile> images = await picker.pickMultiImage();
+      if (images.isNotEmpty) {
+        setState(() {
+          _selectedImages.addAll(images.map((xFile) => File(xFile.path)));
+        });
+      }
+    } else {
+      final XFile? image = await picker.pickImage(source: source);
+      if (image != null) {
+        setState(() {
+          _selectedImages.add(File(image.path));
+        });
+      }
+    }
+  }
+
+  void _removeImage(int index) {
+    setState(() {
+      _selectedImages.removeAt(index);
+    });
   }
 
   @override
@@ -95,74 +161,122 @@ class _ChatInputFieldState extends State<ChatInputField> with SingleTickerProvid
           top: BorderSide(color: borderColor),
         ),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.secondary.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.add, color: Colors.white),
-              onPressed: () {
-                if (onAttachmentPressed != null) {
-                  onAttachmentPressed!();
-                }
-              },
-              iconSize: 20,
-            ),
-          ),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              decoration: BoxDecoration(
-                color: inputBackgroundColor,
-                borderRadius: BorderRadius.circular(24.0),
-                border: Border.all(
-                  color: borderColor,
-                  width: 0.5,
-                ),
+          if (_selectedImages.isNotEmpty)
+            Container(
+              height: _imagePreviewSize + 16,
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _selectedImages.length,
+                itemBuilder: (context, index) {
+                  return Stack(
+                    children: [
+                      Container(
+                        width: _imagePreviewSize,
+                        height: _imagePreviewSize,
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          image: DecorationImage(
+                            image: FileImage(_selectedImages[index]),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 12,
+                        top: 4,
+                        child: InkWell(
+                          onTap: () => _removeImage(index),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.5),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
-              child: TextField(
-                controller: widget.controller,
-                focusNode: _focusNode,
-                decoration: InputDecoration(
-                  hintText: 'Nhắn tin cho BubbleChatAI',
-                  border: InputBorder.none,
-                  hintStyle: TextStyle(color: hintColor),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                onSubmitted: _handleSubmitted,
-                maxLines: null,
-                textInputAction: TextInputAction.send,
-                keyboardType: TextInputType.multiline,
-                style: TextStyle(
-                  color: isDarkMode ? Colors.white : Colors.black,
-                ),
-              ),
             ),
-          ),
-          if (_isComposing) const SizedBox(width: 8),
-          if (_isComposing)
-            ScaleTransition(
-              scale: _sendButtonAnimation,
-              child: Container(
+          Row(
+            children: [
+              Container(
                 width: 40,
                 height: 40,
+                margin: const EdgeInsets.only(right: 8),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary,
+                  color: theme.colorScheme.secondary.withOpacity(0.8),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: IconButton(
-                  icon: const Icon(Icons.send, color: Colors.white),
-                  onPressed: () => _handleSubmitted(widget.controller.text),
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  onPressed: _showImageSourceDialog,
                   iconSize: 20,
                 ),
               ),
-            ),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  decoration: BoxDecoration(
+                    color: inputBackgroundColor,
+                    borderRadius: BorderRadius.circular(24.0),
+                    border: Border.all(
+                      color: borderColor,
+                      width: 0.5,
+                    ),
+                  ),
+                  child: TextField(
+                    controller: widget.controller,
+                    focusNode: _focusNode,
+                    decoration: InputDecoration(
+                      hintText: 'Nhắn tin cho BubbleChatAI',
+                      border: InputBorder.none,
+                      hintStyle: TextStyle(color: hintColor),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onSubmitted: _handleSubmitted,
+                    maxLines: null,
+                    minLines: 1,
+                    textInputAction: TextInputAction.newline,
+                    keyboardType: TextInputType.multiline,
+                    style: TextStyle(
+                      color: isDarkMode ? Colors.white : Colors.black,
+                    ),
+                  ),
+                ),
+              ),
+              if (_isComposing) const SizedBox(width: 8),
+              if (_isComposing)
+                ScaleTransition(
+                  scale: _sendButtonAnimation,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.send, color: Colors.white),
+                      onPressed: () => _handleSubmitted(widget.controller.text),
+                      iconSize: 20,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );

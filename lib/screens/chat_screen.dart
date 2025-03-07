@@ -8,6 +8,7 @@ import '../widgets/typing_indicator.dart';
 import '../widgets/chat_input_field.dart';
 import '../widgets/chat_sidebar.dart';
 import '../screens/settings_screen.dart';
+import 'dart:io';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -48,12 +49,31 @@ class _ChatScreenState extends State<ChatScreen> with AutomaticKeepAliveClientMi
     super.dispose();
   }
 
-  void _handleSubmitted(String text) {
-    if (text.trim().isEmpty) return;
+  void _handleSubmitted(String text, List<File> images) async {
+    if (text.trim().isEmpty && images.isEmpty) return;
     
     _textController.clear();
+    
+    // Upload ảnh nếu có trước khi gửi tin nhắn
+    List<String> uploadedImageUrls = [];
+    if (images.isNotEmpty) {
+      try {
+        uploadedImageUrls = await _aiService.uploadImages(images);
+      } catch (error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Lỗi tải ảnh lên: $error")),
+        );
+        // Sử dụng đường dẫn gốc nếu không thể upload
+        uploadedImageUrls = images.map((file) => file.path).toList();
+      }
+    }
+    
     setState(() {
-      _messages.add(Message(text: text, isUser: true));
+      _messages.add(Message(
+        text: text,
+        isUser: true,
+        images: uploadedImageUrls,
+      ));
       _isTyping = true;
       _showAllSuggestions = false;
     });
@@ -67,23 +87,23 @@ class _ChatScreenState extends State<ChatScreen> with AutomaticKeepAliveClientMi
     });
     
     // Sử dụng stream để cập nhật tin nhắn theo thời gian thực
-    _aiService.generateResponseStream(text).listen(
+    _aiService.generateResponseStream(text, imageUrls: uploadedImageUrls).listen(
       (fullResponse) {
         if (mounted) {
           setState(() {
-            // Tìm vị trí tin nhắn AI trong danh sách
             final index = _messages.indexWhere((msg) => 
               msg == aiMessage || 
               (!msg.isUser && _messages.indexOf(msg) == _messages.length - 1)
             );
             
             if (index != -1) {
-              // Tạo tin nhắn mới với nội dung cập nhật
-              _messages[index] = Message(text: fullResponse, isUser: false);
+              _messages[index] = Message(
+                text: fullResponse,
+                isUser: false,
+              );
             }
           });
           
-          // Đảm bảo cuộn xuống sau mỗi cập nhật
           _scrollToBottom();
         }
       },
@@ -98,14 +118,16 @@ class _ChatScreenState extends State<ChatScreen> with AutomaticKeepAliveClientMi
         if (mounted) {
           setState(() {
             _isTyping = false;
-            // Tìm vị trí tin nhắn AI
             final index = _messages.indexWhere((msg) => 
               msg == aiMessage || 
               (!msg.isUser && _messages.indexOf(msg) == _messages.length - 1)
             );
             
             if (index != -1) {
-              _messages[index] = Message(text: "Đã xảy ra lỗi: $error", isUser: false);
+              _messages[index] = Message(
+                text: "Đã xảy ra lỗi: $error",
+                isUser: false,
+              );
             }
           });
         }
@@ -135,7 +157,7 @@ class _ChatScreenState extends State<ChatScreen> with AutomaticKeepAliveClientMi
 
   void _handleSuggestionTap(String suggestion) {
     _textController.text = suggestion;
-    _handleSubmitted(suggestion);
+    _handleSubmitted(suggestion, []);
   }
 
   void _toggleShowAllSuggestions() {
@@ -178,7 +200,7 @@ class _ChatScreenState extends State<ChatScreen> with AutomaticKeepAliveClientMi
                 ),
               ),
               const SizedBox(width: 8),
-              SizedBox(
+              _showAllSuggestions ? const SizedBox() : SizedBox(
                 width: MediaQuery.of(context).size.width * 0.2,
                 child: SuggestionButton(
                   text: 'Thêm',
@@ -324,7 +346,7 @@ class _ChatScreenState extends State<ChatScreen> with AutomaticKeepAliveClientMi
                           const SizedBox(height: 40),
                           const Center(
                             child: Text(
-                              'Tôi có thể giúp gì cho bạn?',
+                              'Chào mừng bạn đến với BubbleChatAI!',
                               style: TextStyle(
                                 fontSize: 24.0,
                                 fontWeight: FontWeight.bold,
