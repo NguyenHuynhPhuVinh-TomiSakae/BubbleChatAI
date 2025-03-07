@@ -6,6 +6,7 @@ class ChatHistory {
   final DateTime createdAt;
   final DateTime lastUpdatedAt;
   final List<Message> messages;
+  final String? systemInstruction;
 
   ChatHistory({
     required this.id,
@@ -13,9 +14,10 @@ class ChatHistory {
     required this.createdAt,
     required this.lastUpdatedAt,
     required this.messages,
+    this.systemInstruction,
   });
 
-  factory ChatHistory.create(String title, Message firstMessage) {
+  factory ChatHistory.create(String title, Message firstMessage, {String? systemInstruction}) {
     final now = DateTime.now();
     return ChatHistory(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -23,6 +25,7 @@ class ChatHistory {
       createdAt: now,
       lastUpdatedAt: now,
       messages: [firstMessage],
+      systemInstruction: systemInstruction,
     );
   }
 
@@ -32,6 +35,7 @@ class ChatHistory {
     DateTime? createdAt,
     DateTime? lastUpdatedAt,
     List<Message>? messages,
+    String? systemInstruction,
   }) {
     return ChatHistory(
       id: id ?? this.id,
@@ -39,6 +43,7 @@ class ChatHistory {
       createdAt: createdAt ?? this.createdAt,
       lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
       messages: messages ?? this.messages,
+      systemInstruction: systemInstruction ?? this.systemInstruction,
     );
   }
 
@@ -62,6 +67,7 @@ class ChatHistory {
         'images': m.images,
         'timestamp': m.timestamp.toIso8601String(),
       }).toList(),
+      'systemInstruction': systemInstruction,
     };
   }
 
@@ -77,6 +83,7 @@ class ChatHistory {
         images: m['images'] != null ? List<String>.from(m['images']) : [],
         timestamp: DateTime.parse(m['timestamp']),
       )).toList(),
+      systemInstruction: json['systemInstruction'],
     );
   }
 } 

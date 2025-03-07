@@ -12,6 +12,7 @@ class AiService {
   ChatSession? _chatSession;
   bool _isInitialized = false;
   ChatHistory? _currentChatHistory;
+  String? _systemInstructionText;
   
   // Thêm cache cho ảnh
   final Map<String, String> _imageCache = {};
@@ -29,17 +30,39 @@ class AiService {
         return;
       }
       
-      _model = GenerativeModel(
-        model: 'gemini-2.0-flash',
-        apiKey: apiKey,
-        generationConfig: GenerationConfig(
-          temperature: 1,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 8192,
-          responseMimeType: 'text/plain',
-        ),
-      );
+      // Lấy ghi chú hệ thống từ Preferences
+      _systemInstructionText = await Preferences.getSystemInstruction();
+      
+      // Tạo GenerativeModel với hoặc không có systemInstruction tùy theo giá trị
+      if (_systemInstructionText != null && _systemInstructionText!.isNotEmpty) {
+        // Chuyển đổi text thành Content object
+        final systemInstruction = Content.text(_systemInstructionText!);
+        
+        _model = GenerativeModel(
+          model: 'gemini-2.0-flash',
+          apiKey: apiKey,
+          systemInstruction: systemInstruction,
+          generationConfig: GenerationConfig(
+            temperature: 1,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 8192,
+            responseMimeType: 'text/plain',
+          ),
+        );
+      } else {
+        _model = GenerativeModel(
+          model: 'gemini-2.0-flash',
+          apiKey: apiKey,
+          generationConfig: GenerationConfig(
+            temperature: 1,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 8192,
+            responseMimeType: 'text/plain',
+          ),
+        );
+      }
       
       _isInitialized = true;
     } catch (e) {
@@ -51,6 +74,19 @@ class AiService {
     await Preferences.saveApiKey(apiKey);
     _isInitialized = false;
     await _initializeModel();
+  }
+  
+  // Thêm phương thức cập nhật ghi chú hệ thống chung
+  Future<void> updateSystemInstruction(String instruction) async {
+    await Preferences.saveSystemInstruction(instruction);
+    _systemInstructionText = instruction;
+    _isInitialized = false;
+    await _initializeModel();
+  }
+  
+  // Lấy ra ghi chú hệ thống hiện tại
+  String? getSystemInstruction() {
+    return _systemInstructionText;
   }
   
   Future<void> startNewChat() async {
@@ -65,6 +101,43 @@ class AiService {
     
     _currentChatHistory = chatHistory;
     
+    // Nếu chat history có system instruction riêng, tạo model mới với system instruction đó
+    if (chatHistory.systemInstruction != null && chatHistory.systemInstruction!.isNotEmpty) {
+      final apiKey = await Preferences.getApiKey();
+      if (apiKey != null && apiKey.isNotEmpty) {
+        // Chuyển đổi text thành Content object
+        final systemInstruction = Content.text(chatHistory.systemInstruction!);
+        
+        final tempModel = GenerativeModel(
+          model: 'gemini-2.0-flash',
+          apiKey: apiKey,
+          systemInstruction: systemInstruction,
+          generationConfig: GenerationConfig(
+            temperature: 1,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 8192,
+            responseMimeType: 'text/plain',
+          ),
+        );
+        
+        // Chuyển đổi tin nhắn thành định dạng mà Gemini yêu cầu
+        final history = <Content>[];
+        
+        for (int i = 0; i < chatHistory.messages.length; i++) {
+          final message = chatHistory.messages[i];
+          if (message.isUser) {
+            history.add(Content.text(message.text));
+          } else {
+            history.add(Content.model([TextPart(message.text)]));
+          }
+        }
+        
+        _chatSession = tempModel.startChat(history: history);
+        return;
+      }
+    }
+    
     // Chuyển đổi tin nhắn thành định dạng mà Gemini yêu cầu
     final history = <Content>[];
     
@@ -78,6 +151,19 @@ class AiService {
     }
     
     _chatSession = _model!.startChat(history: history);
+  }
+  
+  // Phương thức để cập nhật systemInstruction cho chat history hiện tại
+  Future<void> updateCurrentChatSystemInstruction(String instruction) async {
+    if (_currentChatHistory == null) return;
+    
+    final updatedHistory = _currentChatHistory!.copyWith(systemInstruction: instruction);
+    _currentChatHistory = updatedHistory;
+    
+    await Preferences.saveChatHistoryItem(updatedHistory);
+    
+    // Tải lại chat history để áp dụng system instruction mới
+    await loadChatHistory(updatedHistory);
   }
   
   Future<String> generateResponse(String query) async {
@@ -319,5 +405,15 @@ class AiService {
     } catch (e) {
       print('Lỗi khi chuẩn bị thư mục ảnh: $e');
     }
+  }
+
+  // Phương thức để lấy chat history hiện tại
+  Future<ChatHistory?> getCurrentChatHistory() async {
+    return _currentChatHistory;
+  }
+  
+  // Phương thức để kiểm tra xem có chat history hiện tại hay không
+  Future<bool> hasCurrentChatHistory() async {
+    return _currentChatHistory != null;
   }
 } 

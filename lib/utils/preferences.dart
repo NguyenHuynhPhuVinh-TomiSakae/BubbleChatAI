@@ -5,6 +5,7 @@ import '../models/chat_history.dart';
 class Preferences {
   static const String apiKeyKey = 'gemini_api_key';
   static const String chatHistoryKey = 'chat_history';
+  static const String systemInstructionKey = 'system_instruction';
   
   static Future<void> saveApiKey(String apiKey) async {
     final prefs = await SharedPreferences.getInstance();
@@ -14,6 +15,16 @@ class Preferences {
   static Future<String?> getApiKey() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(apiKeyKey);
+  }
+  
+  static Future<void> saveSystemInstruction(String instruction) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(systemInstructionKey, instruction);
+  }
+  
+  static Future<String?> getSystemInstruction() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(systemInstructionKey);
   }
   
   static Future<void> saveChatHistory(List<ChatHistory> chatHistories) async {

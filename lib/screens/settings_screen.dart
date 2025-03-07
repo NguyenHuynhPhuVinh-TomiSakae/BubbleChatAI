@@ -15,18 +15,22 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _apiKeyController = TextEditingController();
+  final TextEditingController _systemInstructionController = TextEditingController();
   bool _isLoading = true;
   
   @override
   void initState() {
     super.initState();
-    _loadApiKey();
+    _loadSettings();
   }
   
-  Future<void> _loadApiKey() async {
+  Future<void> _loadSettings() async {
     final apiKey = await Preferences.getApiKey();
+    final systemInstruction = await Preferences.getSystemInstruction();
+    
     setState(() {
       _apiKeyController.text = apiKey ?? '';
+      _systemInstructionController.text = systemInstruction ?? '';
       _isLoading = false;
     });
   }
@@ -45,6 +49,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('API key đã được lưu')),
+      );
+    }
+  }
+  
+  Future<void> _saveSystemInstruction() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    await widget.aiService.updateSystemInstruction(_systemInstructionController.text);
+    
+    setState(() {
+      _isLoading = false;
+    });
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ghi chú hệ thống đã được lưu')),
       );
     }
   }
@@ -119,6 +141,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     child: Text('Tối'),
                                   ),
                                 ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    // Phần System Instruction (Ghi chú hệ thống)
+                    Card(
+                      elevation: 2,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Ghi chú hệ thống (System Instruction)',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Các chỉ dẫn này sẽ được gửi tới AI mỗi khi bắt đầu cuộc trò chuyện mới',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _systemInstructionController,
+                              decoration: InputDecoration(
+                                hintText: 'Ví dụ: Bạn là một con mèo tên là Neko.',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              maxLines: 5,
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _saveSystemInstruction,
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                child: const Text('Lưu ghi chú hệ thống'),
                               ),
                             ),
                           ],

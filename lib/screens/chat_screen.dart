@@ -25,6 +25,7 @@ class _ChatScreenState extends State<ChatScreen> with AutomaticKeepAliveClientMi
   bool _isTyping = false;
   bool _showAllSuggestions = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final TextEditingController _systemInstructionController = TextEditingController();
 
   @override
   bool get wantKeepAlive => true;
@@ -46,7 +47,87 @@ class _ChatScreenState extends State<ChatScreen> with AutomaticKeepAliveClientMi
   void dispose() {
     _scrollController.dispose();
     _textController.dispose();
+    _systemInstructionController.dispose();
     super.dispose();
+  }
+
+  // Thêm phương thức để hiển thị dialog cài đặt ghi chú hệ thống
+  Future<void> _showSystemInstructionDialog() async {
+    String? currentInstruction;
+    ChatHistory? currentChatHistory;
+    
+    // Lấy thông tin về chat history hiện tại
+    currentChatHistory = await _aiService.getCurrentChatHistory();
+    
+    if (currentChatHistory != null) {
+      currentInstruction = currentChatHistory.systemInstruction;
+    }
+    
+    _systemInstructionController.text = currentInstruction ?? "";
+    
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Ghi chú hệ thống riêng'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Nhập ghi chú hệ thống riêng cho cuộc trò chuyện này:',
+                  style: TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _systemInstructionController,
+                  decoration: InputDecoration(
+                    hintText: 'Ví dụ: Bạn là một con mèo tên là Neko.',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  maxLines: 5,
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Hủy'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Lưu'),
+              onPressed: () async {
+                // Kiểm tra nếu có chat history đang hoạt động
+                final hasChatHistory = await _aiService.hasCurrentChatHistory();
+                
+                if (hasChatHistory) {
+                  await _aiService.updateCurrentChatSystemInstruction(_systemInstructionController.text);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Đã lưu ghi chú hệ thống riêng')),
+                    );
+                  }
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Không thể lưu: Chưa có cuộc trò chuyện nào được tạo')),
+                    );
+                  }
+                }
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _handleSubmitted(String text, List<File> images) async {
@@ -315,16 +396,51 @@ class _ChatScreenState extends State<ChatScreen> with AutomaticKeepAliveClientMi
             },
           ),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.settings),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SettingsScreen(aiService: _aiService),
-                  ),
-                );
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                switch (value) {
+                  case 'system_instruction':
+                    _showSystemInstructionDialog();
+                    break;
+                  case 'settings':
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SettingsScreen(aiService: _aiService),
+                      ),
+                    );
+                    break;
+                }
               },
+              itemBuilder: (BuildContext context) => [
+                PopupMenuItem<String>(
+                  value: 'system_instruction',
+                  child: Row(
+                    children: [
+                      Icon(Icons.psychology, 
+                        size: 20,
+                        color: brightness == Brightness.light ? Colors.black : Colors.white,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('Ghi chú hệ thống riêng'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings, 
+                        size: 20,
+                        color: brightness == Brightness.light ? Colors.black : Colors.white,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('Cài đặt'),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
