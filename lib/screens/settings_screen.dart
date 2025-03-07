@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/gestures.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../utils/preferences.dart';
 import '../utils/ai_service.dart';
 import '../utils/theme_manager.dart';
@@ -117,6 +119,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return 'Chính trị & Xã hội';
       default:
         return category;
+    }
+  }
+
+  Future<void> _launchURL(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không thể mở URL: $url')),
+        );
+      }
     }
   }
 
@@ -445,12 +458,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            const Text(
-                              '1. Truy cập https://aistudio.google.com/app/apikey\n'
-                              '2. Đăng ký tài khoản và tạo API key\n'
-                              '3. Sao chép và dán API key vào ô trên\n'
-                              '4. Nhấn "Lưu API Key"',
-                              style: TextStyle(fontSize: 14),
+                            Text.rich(
+                              TextSpan(
+                                children: [
+                                  const TextSpan(text: '1. Truy cập '),
+                                  TextSpan(
+                                    text: 'https://aistudio.google.com/app/apikey',
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                    recognizer: TapGestureRecognizer()
+                                      ..onTap = () => _launchURL('https://aistudio.google.com/app/apikey'),
+                                  ),
+                                  const TextSpan(
+                                    text: '\n2. Đăng ký tài khoản và tạo API key\n'
+                                         '3. Sao chép và dán API key vào ô trên\n'
+                                         '4. Nhấn "Lưu API Key"',
+                                  ),
+                                ],
+                              ),
+                              style: const TextStyle(fontSize: 14),
                             ),
                           ],
                         ),
