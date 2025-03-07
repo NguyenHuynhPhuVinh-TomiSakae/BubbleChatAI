@@ -7,6 +7,7 @@ class Preferences {
   static const String chatHistoryKey = 'chat_history';
   static const String systemInstructionKey = 'system_instruction';
   static const String safetySettingsKey = 'safety_settings';
+  static const String modelNameKey = 'model_name';
   
   static Future<void> saveApiKey(String apiKey) async {
     final prefs = await SharedPreferences.getInstance();
@@ -26,6 +27,16 @@ class Preferences {
   static Future<String?> getSystemInstruction() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(systemInstructionKey);
+  }
+  
+  static Future<void> saveModelName(String modelName) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(modelNameKey, modelName);
+  }
+  
+  static Future<String> getModelName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(modelNameKey) ?? 'gemini-2.0-flash';
   }
   
   static Future<void> saveSafetySettings(Map<String, String> settings) async {

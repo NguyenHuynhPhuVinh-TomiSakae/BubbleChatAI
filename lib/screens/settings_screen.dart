@@ -185,6 +185,83 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                     ),
+
+                    // Phần Model Selection (Chọn mô hình)
+                    Card(
+                      elevation: 2,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Mô hình AI',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Chọn mô hình AI để sử dụng cho các cuộc trò chuyện',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            const SizedBox(height: 16),
+                            DropdownButtonFormField<String>(
+                              value: widget.aiService.getCurrentModel(),
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                labelText: 'Mô hình',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                              ),
+                              onChanged: (String? newModel) async {
+                                if (newModel != null) {
+                                  setState(() {
+                                    _isLoading = true;
+                                  });
+                                  
+                                  try {
+                                    await widget.aiService.updateModel(newModel);
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Đã thay đổi mô hình AI')),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Lỗi: $e')),
+                                      );
+                                    }
+                                  }
+                                  
+                                  setState(() {
+                                    _isLoading = false;
+                                  });
+                                }
+                              },
+                              items: widget.aiService.getAvailableModels().map((model) {
+                                return DropdownMenuItem<String>(
+                                  value: model,
+                                  child: Text(
+                                    model,
+                                    style: const TextStyle(fontSize: 14),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                     
                     // Phần System Instruction (Ghi chú hệ thống)
                     Card(

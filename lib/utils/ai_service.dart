@@ -14,6 +14,7 @@ class AiService {
   ChatHistory? _currentChatHistory;
   String? _systemInstructionText;
   Map<String, String> _safetySettings = {};
+  String _currentModelName = 'gemini-2.0-flash';
   
   // Thêm cache cho ảnh
   final Map<String, String> _imageCache = {};
@@ -22,6 +23,18 @@ class AiService {
     _initializeModel();
     _prepareImageDirectory();
   }
+  
+  // Thêm danh sách các mô hình có sẵn
+  static const List<String> availableModels = [
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-2.0-pro-exp-02-05',
+    'gemini-2.0-flash-thinking-exp-01-21',
+    'gemini-2.0-flash-exp',
+    'gemini-1.5-pro',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
+  ];
   
   SafetySetting _convertSafetySetting(String category, String level) {
     HarmCategory harmCategory;
@@ -83,6 +96,9 @@ class AiService {
       // Lấy cài đặt an toàn từ Preferences
       _safetySettings = await Preferences.getSafetySettings();
       
+      // Lấy tên mô hình từ Preferences
+      _currentModelName = await Preferences.getModelName();
+      
       // Chuyển đổi cài đặt an toàn thành danh sách SafetySetting
       final safetySettingsList = _safetySettings.entries.map((entry) => 
         _convertSafetySetting(entry.key, entry.value)
@@ -94,7 +110,7 @@ class AiService {
         final systemInstruction = Content.text(_systemInstructionText!);
         
         _model = GenerativeModel(
-          model: 'gemini-2.0-flash',
+          model: _currentModelName,  // Sử dụng mô hình được chọn
           apiKey: apiKey,
           systemInstruction: systemInstruction,
           safetySettings: safetySettingsList,
@@ -108,7 +124,7 @@ class AiService {
         );
       } else {
         _model = GenerativeModel(
-          model: 'gemini-2.0-flash',
+          model: _currentModelName,  // Sử dụng mô hình được chọn
           apiKey: apiKey,
           safetySettings: safetySettingsList,
           generationConfig: GenerationConfig(
@@ -179,7 +195,7 @@ class AiService {
         final systemInstruction = Content.text(chatHistory.systemInstruction!);
         
         final tempModel = GenerativeModel(
-          model: 'gemini-2.0-flash',
+          model: _currentModelName,
           apiKey: apiKey,
           systemInstruction: systemInstruction,
           safetySettings: _safetySettings.entries.map((entry) => 
@@ -488,5 +504,26 @@ class AiService {
   // Phương thức để kiểm tra xem có chat history hiện tại hay không
   Future<bool> hasCurrentChatHistory() async {
     return _currentChatHistory != null;
+  }
+
+  // Thêm phương thức cập nhật mô hình
+  Future<void> updateModel(String modelName) async {
+    if (!availableModels.contains(modelName)) {
+      throw Exception('Mô hình không hợp lệ');
+    }
+    await Preferences.saveModelName(modelName);
+    _currentModelName = modelName;
+    _isInitialized = false;
+    await _initializeModel();
+  }
+  
+  // Thêm phương thức lấy tên mô hình hiện tại
+  String getCurrentModel() {
+    return _currentModelName;
+  }
+  
+  // Thêm phương thức lấy danh sách mô hình có sẵn
+  List<String> getAvailableModels() {
+    return List<String>.from(availableModels);
   }
 } 
